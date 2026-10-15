@@ -1,0 +1,19 @@
+# COPY to facts.yaml and use only true, fully verified data.
+identity:
+  name: TODO-REAL-NAME
+  email: TODO-EMAIL
+  location: Bogota, Colombia
+  phone: TODO-PHONE
+  linkedin: ''
+  portfolio: ''
+summary: TODO-VERIFIED-PROFESSIONAL-SUMMARY
+skills:
+  - TODO-REAL-SKILL
+experience:
+  - title: TODO-REAL-JOB-TITLE
+    company: TODO-REAL-EMPLOYER
+    dates: TODO-DATES
+    highlights:
+      - TODO-REAL-ACCOMPLISHMENT
+education:
+  - TODO-REAL-EDUCATION

@@ -1,0 +1,5 @@
+# One public API request per scan. Remotive recommends no more than 4/day.
+aggregators:
+  - name: Remotive global remote
+    type: remotive
+    params: {}

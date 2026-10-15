@@ -1,0 +1,9 @@
+# Empty deliberately. Add an exact job URL only if its official posting
+# explicitly instructs candidates to apply by email and you approve it.
+# Example (do not copy unless independently verified):
+# routes:
+#   - job_url: https://job-boards.greenhouse.io/example/jobs/123
+#     recipient: hiring@example.com
+#     proof_url: https://example.com/careers/123
+#     approved_by_user: true
+routes: []

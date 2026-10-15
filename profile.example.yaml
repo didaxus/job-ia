@@ -1,0 +1,19 @@
+# COPY to profile.yaml. Structure expected by original job_search_tool.
+identity:
+  name: TODO-REAL-NAME
+  headline: TODO-REAL-PROFESSIONAL-HEADLINE
+  years_experience: 0
+  location: Bogota, Colombia
+  location_constraints: Remote eligible for Colombia, or hybrid in Bogota only.
+  education: []
+core_stack:
+  instructional_design: []
+  authoring_tools: []
+  lms_lxp: []
+competencies:
+  instructional_design:
+    summary: TODO-REAL-EVIDENCE-SUMMARY
+    evidence: []
+experience_timeline: []
+constraints:
+  - Do not invent credentials, metrics, or years of experience.

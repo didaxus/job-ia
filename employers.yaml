@@ -1,0 +1,17 @@
+# Manually checked real employer boards, not a claim of Colombian eligibility.
+# New employers need official careers and ATS cross-check before adding.
+employers:
+  - name: GitLab
+    company_domain: gitlab.com
+    official_careers_url: https://about.gitlab.com/jobs/all-jobs/
+    official_board_url: https://job-boards.greenhouse.io/gitlab
+    ats: greenhouse
+    slug: gitlab
+    reviewed_on: '2026-10-15'
+  - name: Coursera
+    company_domain: coursera.org
+    official_careers_url: https://careers.coursera.com/search-page
+    official_board_url: https://job-boards.greenhouse.io/coursera
+    ats: greenhouse
+    slug: coursera
+    reviewed_on: '2026-10-15'

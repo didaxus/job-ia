@@ -1,0 +1,9 @@
+# These are real Greenhouse job boards verified on 2026-10-15.
+# The verification policy below still checks each job is LIVE and eligible.
+companies:
+  - name: GitLab
+    ats: greenhouse
+    slug: gitlab
+  - name: Coursera
+    ats: greenhouse
+    slug: coursera

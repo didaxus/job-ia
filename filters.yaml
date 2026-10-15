@@ -1,0 +1,54 @@
+# First stage filtering; the policy check in app/jobpilot.py is stricter.
+priority_title_keywords:
+  - instructional designer
+  - learning experience designer
+  - curriculum developer
+  - elearning developer
+  - e-learning developer
+  - "dise\u00f1ador instruccional"
+  - "dise\u00f1adora instruccional"
+
+title_allow_keywords:
+  - instructional
+  - learning experience
+  - curriculum
+  - elearning
+  - e-learning
+  - learning and development
+  - learning & development
+  - learning specialist
+  - training specialist
+  - training coordinator
+  - training content
+  - "capacitaci\u00f3n"
+  - aprendizaje
+  - education content
+  - educational content
+  - content writer
+  - virtual assistant
+  - asistente virtual
+
+exclusion_keywords:
+  - sales representative
+  - account executive
+  - call center
+  - telemarketing
+  - appointment setter
+  - teacher
+  - professor
+  - warehouse
+  - recruiter
+
+location_allow_patterns:
+  - '\bcolombia\b'
+  - '\bbogot[aá]\b'
+  - '\blatam\b'
+  - '\blatin america\b'
+  - '\bworldwide\b'
+  - '\banywhere\b'
+  - '\bremote\b'
+  - '\bglobal\b'
+
+stack_dealbreakers: []
+stack_core: []
+truncated_description_min_chars: 400
