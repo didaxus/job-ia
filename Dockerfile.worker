@@ -8,6 +8,10 @@ RUN git clone https://github.com/fedorchenko-juli/job_search_tool.git /opt/job_s
  && cd /opt/job_hunt_skills && git checkout "$JOBHUNT_REF"
 RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r /opt/job_search_tool/requirements.txt
 COPY app/ /opt/jobpilot/app/
+COPY config/ /opt/jobpilot/config/
+COPY config/filters.yaml /opt/job_search_tool/filters.yaml
+COPY config/companies.yaml /opt/job_search_tool/companies.yaml
+COPY config/aggregators.yaml /opt/job_search_tool/aggregators.yaml
 RUN mkdir -p /output /opt/job_search_tool/data && chown -R node:node /opt/job_search_tool /opt/jobpilot /opt/job_hunt_skills /output
 ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /opt/job_search_tool
