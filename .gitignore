@@ -1,0 +1,9 @@
+.env
+private/profile.yaml
+private/facts.yaml
+applications/*
+!applications/.gitkeep
+data/*
+!data/.gitkeep
+__pycache__/
+*.pyc

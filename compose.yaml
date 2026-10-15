@@ -1,0 +1,51 @@
+name: jobpilot-id
+
+services:
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        SEARCH_REF: 1a09901abfd47ee168515be97399ea8294caa7c2
+        JOBHUNT_REF: 0dba3f600011fe7870702db276db536f283dc0e0
+    env_file: .env
+    environment:
+      TZ: America/Bogota
+      JOBPILOT_PRIVATE_DIR: /opt/jobpilot/private
+      JOBPILOT_CONFIG_DIR: /opt/jobpilot/config
+      JOBPILOT_OUTPUT_DIR: /output
+    volumes:
+      - ./config:/opt/jobpilot/config:ro
+      - ./config/filters.yaml:/opt/job_search_tool/filters.yaml:ro
+      - ./config/companies.yaml:/opt/job_search_tool/companies.yaml:ro
+      - ./config/aggregators.yaml:/opt/job_search_tool/aggregators.yaml:ro
+      - ./private:/opt/jobpilot/private:ro
+      - ./data:/opt/job_search_tool/data
+      - ./applications:/output
+    command: ["python", "/opt/jobpilot/app/jobpilot.py", "--loop"]
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+      args:
+        SEARCH_REF: 1a09901abfd47ee168515be97399ea8294caa7c2
+    environment:
+      NODE_ENV: production
+      DB_PATH: /opt/job_search_tool/data/seen_jobs.sqlite3
+    volumes:
+      - ./data:/opt/job_search_tool/data
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

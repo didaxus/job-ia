@@ -1,0 +1,12 @@
+FROM node:22-bookworm-slim
+ARG SEARCH_REF
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git && rm -rf /var/lib/apt/lists/*
+RUN git clone https://github.com/fedorchenko-juli/job_search_tool.git /opt/job_search_tool \
+ && cd /opt/job_search_tool && git checkout "$SEARCH_REF"
+WORKDIR /opt/job_search_tool/web
+RUN npm ci && npm run build
+RUN chown -R node:node /opt/job_search_tool
+ENV NODE_ENV=production
+USER node
+EXPOSE 3000
+CMD ["npm", "run", "start", "--", "-H", "0.0.0.0"]
