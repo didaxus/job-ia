@@ -7,7 +7,7 @@ type View = "all" | ProfileId;
 type Profile = {
   id: ProfileId; label: string; headline: string; roles: string[]; search_terms: string[]; skills: string[];
   summary: string; evidence: string; mode: "remote" | "hybrid" | "both";
-  languages: string[]; min_fit: number; ai_opt_in: boolean;
+  languages: string[]; min_fit: number; ai_provider: "codex_chatgpt" | "disabled"; ai_opt_in: boolean;
   cv_original_name: string | null; cv_uploaded_at: string | null;
 };
 type Job = {
@@ -15,9 +15,11 @@ type Job = {
   source: string; official_state: string; profile_id: ProfileId; profile_label: string;
   title_relevance: number; decision: string; reason: string;
   fit_score: number | null; ai_summary: string | null;
+  ai_inferences: {required_skill:string; relation:"direct"|"inferred"|"unsupported";evidence_text:string;rationale:string}[];
   application_status: string | null; application_notes: string | null;
   application_origin: string | null;
 };
+type AiRuntime = {provider:string;state:string;checked_at:string|null};
 type Search = {
   id: number; profile_id: ProfileId | null; state: string;
   created_at: string; error_message: string | null;
@@ -43,6 +45,7 @@ export default function Page() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [runs, setRuns] = useState<Search[]>([]);
+  const [aiRuntime, setAiRuntime] = useState<AiRuntime | null>(null);
   const [showRejected, setShowRejected] = useState(false);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
@@ -58,14 +61,16 @@ export default function Page() {
 
   async function refresh(selectedView: View = view, rejected: boolean = showRejected) {
     try {
-      const [list, matches, searches] = await Promise.all([
+      const [list, matches, searches, provider] = await Promise.all([
         requestJson("/api/profiles"),
         requestJson("/api/jobs?profile=" + selectedView + "&rejected=" + rejected),
         requestJson("/api/search"),
+        requestJson("/api/ai/status"),
       ]);
       setProfiles(list);
       setJobs(matches);
       setRuns(searches);
+      setAiRuntime(provider);
       setError("");
     } catch (e) { setError((e as Error).message); }
     finally { setLoading(false); }
@@ -252,6 +257,20 @@ export default function Page() {
               </fieldset>
               <fieldset>
                 <legend>Evaluación de ajuste</legend>
+                <label>Proveedor de IA
+                  <select value={draft.ai_provider} onChange={e =>
+                    patch("ai_provider", e.target.value as Profile["ai_provider"])}>
+                    <option value="codex_chatgpt">Codex · cuenta ChatGPT (cuota del plan)</option>
+                    <option value="disabled">Sin IA</option>
+                  </select>
+                </label>
+                <p className="jp-muted jp-small">
+                  Estado Codex: {aiRuntime?.state === "connected" ? "Conectado con ChatGPT" :
+                    aiRuntime?.state === "quota_exhausted" ? "Límite de Codex alcanzado" :
+                    aiRuntime?.state === "wrong_auth_method" ? "Se requiere login con ChatGPT, no clave API" :
+                    aiRuntime?.state === "cli_unavailable" ? "Codex CLI no disponible" : "Pendiente de conectar en servidor"}.
+                  La conexión se realiza una vez por SSH; no se introducen contraseñas ni tokens aquí.
+                </p>
                 <label>Ajuste mínimo deseado: {draft.min_fit}%
                   <input type="range" min={50} max={100} step={5}
                     value={draft.min_fit} onChange={e => patch("min_fit", Number(e.target.value))}/>
@@ -259,9 +278,9 @@ export default function Page() {
                 <label className="jp-check">
                   <input type="checkbox" checked={draft.ai_opt_in}
                     onChange={e => patch("ai_opt_in", e.target.checked)} />
-                  Autorizo evaluar mi resumen y evidencias con el proveedor IA configurado
+                  Autorizo enviar mi resumen y evidencias escritas a Codex para evaluar las ofertas
                 </label>
-                <p className="jp-muted jp-small">Desactivado por defecto. No se comparte el archivo PDF con la IA. Requiere API key y evidencias suficientes.</p>
+                <p className="jp-muted jp-small">Desactivado por defecto. El CV PDF no se envía. Usa la cuota de Codex de tu cuenta ChatGPT, sin API key. Inferencias como Moodle → uso de LMS deben citar evidencia; no se inventan habilidades.</p>
               </fieldset>
             </div>
             <button type="button" className="jp-primary" disabled={busy} onClick={saveProfile}>Guardar preferencias</button>
@@ -339,6 +358,21 @@ export default function Page() {
           </div>
           <p className="jp-muted">{selected.reason}</p>
           {selected.ai_summary && <div className="jp-panel"><h3>Evaluación IA</h3><p>{selected.ai_summary}</p></div>}
+          {(selected.ai_inferences?.length ?? 0) > 0 && (
+            <div className="jp-panel">
+              <h3>Competencias: evidencia e inferencias</h3>
+              <ul>
+                {selected.ai_inferences.map((item, i) => (
+                  <li key={i}>
+                    <strong>{item.required_skill} — {item.relation === "direct" ? "Demostrada" :
+                      item.relation === "inferred" ? "Inferencia respaldada" : "Sin evidencia"}</strong>
+                    {item.evidence_text && <p>Evidencia literal: «{item.evidence_text}»</p>}
+                    <p className="jp-muted">{item.rationale}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {selected.url.startsWith("https://") && <a href={selected.url} target="_blank" rel="noopener noreferrer" className="jp-link">Abrir oferta original ↗</a>}
           <p className="jp-muted">Fuente: {selected.source === "remotive" ? "Remotive" : selected.source || "Sin identificar"}. Confirma siempre la vacante en el sitio oficial.</p>
           <h3>Descripción de la vacante</h3>

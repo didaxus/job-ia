@@ -38,7 +38,9 @@ class LayoutTests(unittest.TestCase):
         self.assertNotIn("coolify", db.get("networks", []))
         self.assertIn("JOBPILOT_DB_PASSWORD", str(db["environment"]))
         dashboard=cfg["services"]["dashboard"]
-        self.assertIn("CF_ACCESS_AUD", dashboard["environment"])
+        self.assertNotIn("CF_ACCESS_AUD", dashboard["environment"])
+        self.assertIn("CODEX_HOME", cfg["services"]["pipeline"]["environment"])
+        self.assertNotIn("CODEX_HOME", dashboard["environment"])
         self.assertIn("JOBPILOT_PRIVATE_DIR", dashboard["environment"])
     def test_secret_rules(self):
         ignore=(ROOT/".gitignore").read_text()

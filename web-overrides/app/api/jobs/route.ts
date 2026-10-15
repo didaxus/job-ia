@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const jobs = await rows([
       "SELECT j.url,j.company,j.title,j.location,j.source,j.official_state,",
       "j.posted_at,j.description,pm.profile_id,sp.label AS profile_label,",
-      "pm.title_relevance,pm.decision,pm.reason,pm.fit_score,pm.ai_summary,",
+      "pm.title_relevance,pm.decision,pm.reason,pm.fit_score,pm.ai_summary,pm.ai_inferences,",
       "ah.status AS application_status,ah.notes AS application_notes,",
       "ah.origin AS application_origin",
       "FROM profile_matches pm JOIN jobs j ON j.url=pm.job_url",

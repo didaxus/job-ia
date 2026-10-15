@@ -4,7 +4,7 @@ El error `Dockerfile.worker: no such file or directory` ocurría porque los arch
 
 Crea una nueva **Application** de GitHub `didaxus/job-ia` (rama `main` una vez integrado el PR), con build **Docker Compose**, base directory `/`, Compose Location `/compose.yaml`.
 
-En variables Coolify: `FIT_MIN=80`, `SCAN_EVERY_HOURS=24`, `AUTO_EMAIL=false` y opcional `ANTHROPIC_API_KEY`. El Compose ya no necesita archivo `.env` en disco.
+En variables Coolify: `FIT_MIN=80`, `SCAN_EVERY_HOURS=24`, `AUTO_EMAIL=false` y `MAX_CODEX_EVALUATIONS_PER_DAY=4`. El Compose ya no necesita archivo `.env` en disco.
 
 En el servidor, para habilitar CVs, crea directorio privado:
 ```sh
@@ -54,6 +54,11 @@ Se espera la regla `Host(\`jobs-ia.didaxus.com\`)`, la red `coolify`, HTTP 200 e
 
 **Cloudflare Tunnel no equivale a Cloudflare Access.** Este dashboard de terceros no tiene autenticacion propia. Antes de permitir candidatos, CV, notas o documentos privados, crea una aplicacion de **Cloudflare Zero Trust Access** para `jobs-ia.didaxus.com` que limite el acceso a cuentas autorizadas con MFA. Los headers y el rate limit no autentican usuarios. No uses el panel de Coolify para publicar esta interfaz abierta a Internet mientras carezca de Access.
 
-## Fase PostgreSQL y doble perfil
+## PostgreSQL, doble perfil y Codex con la cuenta ChatGPT
 
-Antes de integrar esta funcionalidad, lee [DUAL-PROFILES-POSTGRES.md](DUAL-PROFILES-POSTGRES.md). Debes configurar en Coolify la contraseña POSTGRES (JOBPILOT_DB_PASSWORD), el dominio del equipo Cloudflare Access (CF_ACCESS_TEAM_DOMAIN) y el AUD de la aplicación (CF_ACCESS_AUD), proteger el hostname con Access, preparar almacenamiento privado de CV, y hacer backup de volúmenes anteriores. Si falta Cloudflare Access o su AUD el nuevo dashboard no sirve datos personales (HTTP 503/401 por diseño). El worker importa la base SQLite existente a PostgreSQL sin borrarla.
+Configura JOBPILOT_DB_PASSWORD en Coolify y conserva un respaldo del volumen SQLite actual.
+Para Codex no se necesita OPENAI_API_KEY ni claves de Anthropic. El worker instala Codex CLI; realiza una única autenticación de ChatGPT mediante `codex login --device-auth` en el contenedor, con CODEX_HOME persistente y separado del dashboard.
+
+La protección de jobs-ia.didaxus.com se configura exclusivamente en tu aplicación de Cloudflare Zero Trust, fuera de Coolify. No se requieren variables ni validadores de Cloudflare dentro de JobPilot.
+
+Consulta [guía Codex](CODEX-CHATGPT.md) y [migración](DUAL-PROFILES-POSTGRES.md).

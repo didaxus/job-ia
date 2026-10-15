@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS search_profiles (
     cv_original_name text,
     cv_sha256 text,
     cv_uploaded_at timestamptz,
+    ai_provider text NOT NULL DEFAULT 'codex_chatgpt'
+        CHECK (ai_provider IN ('codex_chatgpt','disabled')),
     ai_opt_in boolean NOT NULL DEFAULT false,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -59,6 +61,7 @@ CREATE TABLE IF NOT EXISTS profile_matches (
     reason text NOT NULL DEFAULT '',
     fit_score integer CHECK (fit_score IS NULL OR fit_score BETWEEN 0 AND 100),
     ai_summary text,
+    ai_inferences jsonb NOT NULL DEFAULT '[]'::jsonb,
     ai_evaluated_at timestamptz,
     profile_revision timestamptz NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -109,3 +112,24 @@ CREATE TABLE IF NOT EXISTS source_fetches (
     requested_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_source_fetches_window ON source_fetches(source,requested_at);
+
+-- Only operational status, not auth tokens, is stored in PostgreSQL.
+CREATE TABLE IF NOT EXISTS ai_runtime_status (
+    provider text PRIMARY KEY CHECK (provider = 'codex_chatgpt'),
+    state text NOT NULL DEFAULT 'login_required'
+        CHECK (state IN ('connected','login_required','cli_unavailable',
+                         'wrong_auth_method','quota_exhausted','error')),
+    checked_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO ai_runtime_status(provider,state)
+VALUES ('codex_chatgpt','login_required') ON CONFLICT (provider) DO NOTHING;
+
+-- At most a configured number of invocations in any rolling 24h window.
+-- Log attempts before calling Codex so crashes cannot silently double spend.
+CREATE TABLE IF NOT EXISTS ai_evaluation_attempts (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    job_url text NOT NULL REFERENCES jobs(url),
+    profile_id text NOT NULL REFERENCES search_profiles(id),
+    invoked_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_attempts_window ON ai_evaluation_attempts(invoked_at);

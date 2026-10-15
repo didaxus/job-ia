@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     return NextResponse.json(await rows(
-      "SELECT id,label,headline,roles,search_terms,skills,summary,evidence,mode,languages,min_fit,cv_original_name,cv_uploaded_at,ai_opt_in,updated_at FROM search_profiles ORDER BY CASE id WHEN 'professional' THEN 0 ELSE 1 END"
+      "SELECT id,label,headline,roles,search_terms,skills,summary,evidence,mode,languages,min_fit,cv_original_name,cv_uploaded_at,ai_provider,ai_opt_in,updated_at FROM search_profiles ORDER BY CASE id WHEN 'professional' THEN 0 ELSE 1 END"
     ), { headers: { "Cache-Control": "no-store" } });
   } catch {
     return jsonError("Database unavailable", 503);
@@ -40,19 +40,20 @@ export async function PATCH(req: Request) {
       typeof body.headline !== "string" || body.headline.length > 160 ||
       typeof body.summary !== "string" || body.summary.length > 4000 ||
       typeof body.evidence !== "string" || body.evidence.length > 10000 ||
+      !["disabled", "codex_chatgpt"].includes(String(body.ai_provider)) ||
       typeof body.ai_opt_in !== "boolean") {
     return jsonError("Invalid profile fields or limits");
   }
   try {
     const sql = [
       "UPDATE search_profiles SET headline=$2,roles=$3,search_terms=$4,skills=$5,summary=$6,",
-      "evidence=$7,mode=$8,languages=$9,min_fit=$10,ai_opt_in=$11,updated_at=now()",
+      "evidence=$7,mode=$8,languages=$9,min_fit=$10,ai_opt_in=$11,ai_provider=$12,updated_at=now()",
       "WHERE id=$1 RETURNING id,label,headline,roles,search_terms,skills,summary,evidence,",
-      "mode,languages,min_fit,cv_original_name,cv_uploaded_at,ai_opt_in,updated_at",
+      "mode,languages,min_fit,cv_original_name,cv_uploaded_at,ai_provider,ai_opt_in,updated_at",
     ].join(" ");
     const updated = await rows(sql,
       [body.id, body.headline, roles, searchTerms, skills, body.summary, body.evidence,
-       mode, langs, minFit, body.ai_opt_in]
+       mode, langs, minFit, body.ai_opt_in, body.ai_provider]
     );
     return updated.length ? NextResponse.json(updated[0], {
       headers: { "Cache-Control": "no-store" },

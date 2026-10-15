@@ -14,15 +14,20 @@ class PostgresContractTests(unittest.TestCase):
         self.assertIn("ON CONFLICT (id) DO NOTHING", sql)
         self.assertIn("CREATE TABLE IF NOT EXISTS source_fetches", sql)
 
-    def test_dashboard_write_endpoints_fail_closed_without_auth(self):
-        auth = (ROOT / "web-overrides/proxy.ts").read_text()
-        self.assertIn("createRemoteJWKSet", auth)
-        self.assertIn("jwtVerify", auth)
-        self.assertIn("algorithms: [\"RS256\"]", auth)
-        self.assertIn("CF_ACCESS_AUD", auth)
-        self.assertIn("status: 503", auth)
-        self.assertIn("status: 401", auth)
-        self.assertNotIn("CF_ACCESS_DEV_BYPASS", auth)
+    def test_codex_cli_account_isolated_from_dashboard(self):
+        worker = (ROOT / "Dockerfile.worker").read_text()
+        compose = (ROOT / "compose.yaml").read_text()
+        self.assertIn("@openai/codex@0.162.1", worker)
+        self.assertIn("CODEX_HOME: /opt/jobpilot-codex-home", compose)
+        self.assertIn("JOBPILOT_CODEX_HOST_DIR", compose)
+        self.assertNotIn("OPENAI_API_KEY", compose)
+        self.assertNotIn("ANTHROPIC_API_KEY", compose)
+        self.assertNotIn("CF_ACCESS_TEAM_DOMAIN", compose)
+        self.assertNotIn("CF_ACCESS_AUD", compose)
+        self.assertFalse((ROOT / "web-overrides/proxy.ts").exists())
+        self.assertIn("ai_provider", (ROOT / "db/schema.sql").read_text())
+        self.assertIn("ai_inferences jsonb", (ROOT / "db/schema.sql").read_text())
+        self.assertIn("ai_runtime_status", (ROOT / "db/schema.sql").read_text())
 
     def test_original_sqlite_not_deleted_or_replaced(self):
         worker = (ROOT / "app/profile_worker.py").read_text()

@@ -6,6 +6,7 @@ by the candidate, and only after opting in to external AI evaluation.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
@@ -134,7 +135,7 @@ def get_profiles(db):
     with db.cursor() as cur:
         cur.execute("""
             SELECT id, roles, search_terms, mode, languages, min_fit, summary, evidence,
-                   ai_opt_in, updated_at, skills
+                   ai_opt_in, ai_provider, updated_at, skills
             FROM search_profiles ORDER BY id
         """)
         keys = [x.name for x in cur.description]
@@ -233,6 +234,10 @@ def sync_once():
                                 WHEN profile_matches.profile_revision=excluded.profile_revision
                                 AND excluded.decision='READY_FOR_FIT_REVIEW'
                                 THEN profile_matches.ai_evaluated_at ELSE NULL END,
+                            ai_inferences=CASE
+                                WHEN profile_matches.profile_revision=excluded.profile_revision
+                                AND excluded.decision='READY_FOR_FIT_REVIEW'
+                                THEN profile_matches.ai_inferences ELSE '[]'::jsonb END,
                             profile_revision=excluded.profile_revision,
                             updated_at=now()
                     """, (job["url"], profile["id"], relevance,
@@ -296,56 +301,99 @@ def run_search():
                   flush=True)
 
 
-def run_ai(max_count):
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        return
+def update_ai_status(state: str):
+    if state not in {"connected", "login_required", "cli_unavailable",
+                     "wrong_auth_method", "quota_exhausted", "error"}:
+        state = "error"
     with pg_connect() as db:
-        with db.cursor() as cur:
-            cur.execute("""
-                SELECT pm.job_url,pm.profile_id,p.summary,p.evidence,p.skills,
-                       p.roles,p.min_fit,p.updated_at,
-                       j.company,j.title,j.location,j.description
-                FROM profile_matches pm
-                JOIN search_profiles p ON p.id=pm.profile_id
-                JOIN jobs j ON j.url=pm.job_url
-                WHERE p.ai_opt_in=TRUE AND pm.decision='READY_FOR_FIT_REVIEW'
-                  AND pm.fit_score IS NULL
-                ORDER BY pm.title_relevance DESC, j.last_imported_at DESC
-                LIMIT %s
-            """, (max_count,))
-            rows = cur.fetchall()
-        if not rows:
+        db.execute("""
+            INSERT INTO ai_runtime_status(provider,state)
+            VALUES ('codex_chatgpt',%s)
+            ON CONFLICT (provider) DO UPDATE SET
+                state=excluded.state,checked_at=now()
+        """, (state,))
+        db.commit()
+
+
+def reserve_codex_attempt(url: str, profile_id: str, max_per_day: int) -> bool:
+    """Transactionally enforce a bounded Codex budget across worker cycles."""
+    with pg_connect() as db:
+        # A single advisory lock serializes slot reservations.
+        db.execute("SELECT pg_advisory_xact_lock(82263011)")
+        used = db.execute("""
+            SELECT count(*) FROM ai_evaluation_attempts
+            WHERE invoked_at > now() - interval '24 hours'
+        """).fetchone()[0]
+        if used >= max_per_day:
+            return False
+        db.execute("""
+            INSERT INTO ai_evaluation_attempts(job_url,profile_id)
+            VALUES (%s,%s)
+        """, (url, profile_id))
+        db.commit()
+        return True
+
+
+def run_ai(max_count):
+    """Use ONLY ChatGPT-authenticated Codex CLI, never an OpenAI API key."""
+    from codex_provider import CodexEvaluationError, evaluate, login_status
+    status = login_status()
+    update_ai_status(status)
+    if status != "connected":
+        print(f"[codex] {status}; no evaluation attempted", flush=True)
+        return
+    budget = max(1, min(30, int(os.getenv("MAX_CODEX_EVALUATIONS_PER_DAY", "4"))))
+    with pg_connect() as db:
+        rows = db.execute("""
+            SELECT pm.job_url,pm.profile_id,p.summary,p.evidence,p.skills,
+                   p.roles,p.min_fit,p.updated_at,
+                   j.company,j.title,j.location,j.description
+            FROM profile_matches pm
+            JOIN search_profiles p ON p.id=pm.profile_id
+            JOIN jobs j ON j.url=pm.job_url
+            WHERE p.ai_opt_in=TRUE AND p.ai_provider='codex_chatgpt'
+              AND pm.decision='READY_FOR_FIT_REVIEW' AND pm.fit_score IS NULL
+            ORDER BY pm.title_relevance DESC,j.last_imported_at DESC
+            LIMIT %s
+        """, (max_count,)).fetchall()
+    for (url, pid, summary, evidence, skills, roles, minimum, revision,
+         company, title, location, description) in rows:
+        if not reserve_codex_attempt(url, pid, budget):
+            print("[codex] self-imposed daily evaluation cap reached", flush=True)
             return
-        from app.ai_evaluate import evaluate_one, MODEL
-        import anthropic
-        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        for (url, pid, summary, evidence, skills, roles, minimum, revision,
-             company, title, location, description) in rows:
-            profile = {"summary": summary, "verified_experience_evidence": evidence,
-                       "skills": skills, "target_roles": roles, "id": pid}
-            job = {"url": url, "company": company, "title": title,
-                   "location": location, "description": description}
-            try:
-                result = evaluate_one(client, profile, job)
-                score = int(result["match_score"])
-                if not 0 <= score <= 100:
-                    raise ValueError("Invalid score")
-                decision = "FIT_BELOW_THRESHOLD" if score < minimum else "FIT_REVIEW_REQUIRED"
-                details = " | ".join(str(result.get(k, ""))[:1000]
-                    for k in ("transferable_strengths", "genuine_gaps", "risk_factors"))
-                with db.cursor() as cur:
-                    cur.execute("""
-                        UPDATE profile_matches SET fit_score=%s,
-                            ai_summary=%s, decision=%s, ai_evaluated_at=now()
-                        WHERE job_url=%s AND profile_id=%s
-                          AND profile_revision=%s
-                          AND decision='READY_FOR_FIT_REVIEW'
-                    """, (score, details, decision, url, pid, revision))
+        profile = {"summary": summary, "evidence": evidence,
+                   "skills": skills, "roles": roles, "id": pid}
+        job = {"company": company, "title": title,
+               "location": location, "description": description}
+        try:
+            result = evaluate(profile, job)
+            score = result["match_score"]
+            decision = "FIT_BELOW_THRESHOLD" if score < minimum else "FIT_REVIEW_REQUIRED"
+            detail = " | ".join(str(result.get(field, ""))[:1000]
+                for field in ("transferable_strengths", "genuine_gaps", "risk_factors"))
+            with pg_connect() as db:
+                db.execute("""
+                    UPDATE profile_matches SET fit_score=%s,
+                        ai_summary=%s,ai_inferences=%s::jsonb,
+                        decision=%s,ai_evaluated_at=now()
+                    WHERE job_url=%s AND profile_id=%s
+                      AND profile_revision=%s
+                      AND decision='READY_FOR_FIT_REVIEW'
+                """, (score, detail, json.dumps(result["skill_inferences"], ensure_ascii=False),
+                      decision, url, pid, revision))
                 db.commit()
-                print(f"[AI] {pid}: {score}/100, {title}; advisory only, no submission", flush=True)
-            except Exception as exc:
-                db.rollback()
-                print(f"[AI] {pid}: evaluation failed {type(exc).__name__}", flush=True)
+            print(f"[codex] {pid}: {score}/100; advisory only, no application sent",
+                  flush=True)
+        except CodexEvaluationError as exc:
+            safe_code = str(exc)
+            if safe_code in ("login_required", "quota_exhausted", "cli_unavailable"):
+                update_ai_status(safe_code)
+                print(f"[codex] {safe_code}; evaluation paused", flush=True)
+                return
+            print(f"[codex] evaluation did not pass validation: {safe_code}", flush=True)
+        except Exception as exc:
+            # Do not log candidate details, credential paths or model raw output.
+            print(f"[codex] evaluation error type: {type(exc).__name__}", flush=True)
 
 
 def claim_search():
@@ -398,8 +446,13 @@ def run_worker(one_cycle=False):
         return
     last_profile_revision = None
     last_reindex = time.monotonic()
+    last_codex_check = 0.0
     while True:
         try:
+            if time.monotonic() - last_codex_check >= 300:
+                from codex_provider import login_status
+                update_ai_status(login_status())
+                last_codex_check = time.monotonic()
             enqueue_periodic_if_due()
             task = claim_search()
             if task:
@@ -409,7 +462,7 @@ def run_worker(one_cycle=False):
                         run_search()
                     sync_once()
                     if kind == "fetch":
-                        run_ai(max(1, min(20, int(os.getenv("MAX_AI_EVALUATIONS", "20")))))
+                        run_ai(max(1, min(30, int(os.getenv("MAX_CODEX_EVALUATIONS_PER_DAY", "4")))))
                     finish_search(search_id)
                 except Exception as exc:
                     finish_search(search_id, exc)
@@ -421,7 +474,7 @@ def run_worker(one_cycle=False):
                 if revision != last_profile_revision:
                     if last_profile_revision is not None:
                         sync_once()
-                        run_ai(max(1, min(20, int(os.getenv("MAX_AI_EVALUATIONS", "20")))))
+                        run_ai(max(1, min(30, int(os.getenv("MAX_CODEX_EVALUATIONS_PER_DAY", "4")))))
                     last_profile_revision = revision
                     last_reindex = time.monotonic()
                 elif time.monotonic() - last_reindex > 3600:
