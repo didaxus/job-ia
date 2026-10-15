@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+private/
+data/
+applications/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+.venv/
+*.zip
+*.tar.gz

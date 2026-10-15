@@ -1,9 +1,19 @@
+# No publicar secretos ni datos personales
 .env
-private/profile.yaml
-private/facts.yaml
+.env.*
+!.env.example
+private/*.yaml
+!private/*.example.yaml
 applications/*
 !applications/.gitkeep
 data/*
 !data/.gitkeep
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.venv/
+node_modules/
+.next/
+.DS_Store
+.idea/
+.vscode/

@@ -1,5 +1,3 @@
-name: jobpilot-id
-
 services:
   pipeline:
     build:
@@ -8,20 +6,25 @@ services:
       args:
         SEARCH_REF: 1a09901abfd47ee168515be97399ea8294caa7c2
         JOBHUNT_REF: 0dba3f600011fe7870702db276db536f283dc0e0
-    env_file: .env
     environment:
       TZ: America/Bogota
       JOBPILOT_PRIVATE_DIR: /opt/jobpilot/private
       JOBPILOT_CONFIG_DIR: /opt/jobpilot/config
       JOBPILOT_OUTPUT_DIR: /output
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      FIT_MIN: ${FIT_MIN:-80}
+      MAX_AI_EVALUATIONS: ${MAX_AI_EVALUATIONS:-20}
+      SCAN_EVERY_HOURS: ${SCAN_EVERY_HOURS:-24}
+      AUTO_EMAIL: ${AUTO_EMAIL:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     volumes:
-      - ./config:/opt/jobpilot/config:ro
-      - ./config/filters.yaml:/opt/job_search_tool/filters.yaml:ro
-      - ./config/companies.yaml:/opt/job_search_tool/companies.yaml:ro
-      - ./config/aggregators.yaml:/opt/job_search_tool/aggregators.yaml:ro
-      - ./private:/opt/jobpilot/private:ro
-      - ./data:/opt/job_search_tool/data
-      - ./applications:/output
+      - ${JOBPILOT_PRIVATE_HOST_DIR:-/srv/jobpilot-id/private}:/opt/jobpilot/private:ro
+      - jobpilot_db:/opt/job_search_tool/data
+      - jobpilot_applications:/output
     command: ["python", "/opt/jobpilot/app/jobpilot.py", "--loop"]
     restart: unless-stopped
     init: true
@@ -40,12 +43,16 @@ services:
       NODE_ENV: production
       DB_PATH: /opt/job_search_tool/data/seen_jobs.sqlite3
     volumes:
-      - ./data:/opt/job_search_tool/data
+      - jobpilot_db:/opt/job_search_tool/data
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:13030:3000"
     restart: unless-stopped
     init: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+volumes:
+  jobpilot_db:
+  jobpilot_applications:

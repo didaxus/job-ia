@@ -1,0 +1,37 @@
+name: JobPilot validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline test requirements
+        run: python -m pip install 'httpx>=0.27' 'pyyaml>=6.0'
+      - name: Run policy and repository layout tests
+        run: python -m unittest discover -s tests -v
+      - name: Validate Docker Compose syntax
+        run: docker compose -f compose.yaml config --quiet
+      - name: Assert no personal files committed
+        run: |
+          ! git ls-files | grep -E '^(\.env$|private/(facts|profile)\.yaml$|data/[^.]+|applications/[^.]+)'
+  image-build:
+    runs-on: ubuntu-24.04
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build both images (no deploy or submissions)
+        run: docker compose -f compose.yaml build pipeline dashboard
