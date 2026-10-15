@@ -4,7 +4,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 RUN git clone https://github.com/fedorchenko-juli/job_search_tool.git /opt/job_search_tool \
  && cd /opt/job_search_tool && git checkout "$SEARCH_REF"
 WORKDIR /opt/job_search_tool/web
-RUN npm ci && npm run build
+COPY web-overrides/ /opt/job_search_tool/web/
+RUN npm ci \
+    && npm install --no-save --no-package-lock pg@8.13.1 @types/pg@8.11.10 jose@5.9.6 \
+    && npm run build
 RUN chown -R node:node /opt/job_search_tool
 ENV NODE_ENV=production
 USER node

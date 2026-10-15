@@ -53,3 +53,7 @@ Se espera la regla `Host(\`jobs-ia.didaxus.com\`)`, la red `coolify`, HTTP 200 e
 ### Acceso seguro obligatorio para datos personales
 
 **Cloudflare Tunnel no equivale a Cloudflare Access.** Este dashboard de terceros no tiene autenticacion propia. Antes de permitir candidatos, CV, notas o documentos privados, crea una aplicacion de **Cloudflare Zero Trust Access** para `jobs-ia.didaxus.com` que limite el acceso a cuentas autorizadas con MFA. Los headers y el rate limit no autentican usuarios. No uses el panel de Coolify para publicar esta interfaz abierta a Internet mientras carezca de Access.
+
+## Fase PostgreSQL y doble perfil
+
+Antes de integrar esta funcionalidad, lee [DUAL-PROFILES-POSTGRES.md](DUAL-PROFILES-POSTGRES.md). Debes configurar en Coolify la contraseña POSTGRES (JOBPILOT_DB_PASSWORD), el dominio del equipo Cloudflare Access (CF_ACCESS_TEAM_DOMAIN) y el AUD de la aplicación (CF_ACCESS_AUD), proteger el hostname con Access, preparar almacenamiento privado de CV, y hacer backup de volúmenes anteriores. Si falta Cloudflare Access o su AUD el nuevo dashboard no sirve datos personales (HTTP 503/401 por diseño). El worker importa la base SQLite existente a PostgreSQL sin borrarla.
