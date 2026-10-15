@@ -1,5 +1,28 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jobpilot
+      POSTGRES_USER: jobpilot
+      POSTGRES_PASSWORD: ${JOBPILOT_DB_PASSWORD:?Set a strong JOBPILOT_DB_PASSWORD in Coolify}
+      TZ: America/Bogota
+    volumes:
+      - jobpilot_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobpilot -d jobpilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+
   pipeline:
+    depends_on:
+      postgres:
+        condition: service_healthy
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -11,9 +34,15 @@ services:
       JOBPILOT_PRIVATE_DIR: /opt/jobpilot/private
       JOBPILOT_CONFIG_DIR: /opt/jobpilot/config
       JOBPILOT_OUTPUT_DIR: /output
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: jobpilot
+      PGDATABASE: jobpilot
+      PGPASSWORD: ${JOBPILOT_DB_PASSWORD:?Set JOBPILOT_DB_PASSWORD in Coolify}
+      LEGACY_SQLITE_PATH: /opt/job_search_tool/data/seen_jobs.sqlite3
+      CODEX_HOME: /opt/jobpilot-codex-home
       FIT_MIN: ${FIT_MIN:-80}
-      MAX_AI_EVALUATIONS: ${MAX_AI_EVALUATIONS:-20}
+      MAX_CODEX_EVALUATIONS_PER_DAY: ${MAX_CODEX_EVALUATIONS_PER_DAY:-4}
       SCAN_EVERY_HOURS: ${SCAN_EVERY_HOURS:-24}
       AUTO_EMAIL: ${AUTO_EMAIL:-false}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -25,7 +54,9 @@ services:
       - ${JOBPILOT_PRIVATE_HOST_DIR:-/srv/jobpilot-id/private}:/opt/jobpilot/private:ro
       - jobpilot_db:/opt/job_search_tool/data
       - jobpilot_applications:/output
-    command: ["python", "/opt/jobpilot/app/jobpilot.py", "--loop"]
+      # Writable only for Codex CLI token refresh; never mounted in dashboard.
+      - ${JOBPILOT_CODEX_HOST_DIR:-/srv/jobpilot-id/codex-home}:/opt/jobpilot-codex-home
+    command: ["python", "/opt/jobpilot/app/profile_worker.py"]
     restart: unless-stopped
     init: true
     security_opt:
@@ -34,6 +65,9 @@ services:
       - ALL
 
   dashboard:
+    depends_on:
+      postgres:
+        condition: service_healthy
     build:
       context: .
       dockerfile: Dockerfile.dashboard
@@ -42,8 +76,15 @@ services:
     environment:
       NODE_ENV: production
       DB_PATH: /opt/job_search_tool/data/seen_jobs.sqlite3
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: jobpilot
+      PGDATABASE: jobpilot
+      PGPASSWORD: ${JOBPILOT_DB_PASSWORD:?Set JOBPILOT_DB_PASSWORD in Coolify}
+      JOBPILOT_PRIVATE_DIR: /opt/jobpilot/private
     volumes:
-      - jobpilot_db:/opt/job_search_tool/data
+      - jobpilot_db:/opt/job_search_tool/data:ro
+      - ${JOBPILOT_PRIVATE_HOST_DIR:-/srv/jobpilot-id/private}:/opt/jobpilot/private
     # Cloudflare Tunnel -> Traefik (HTTPS entrypoint) -> Next.js dashboard:3000.
     # Do not expose personal data until Cloudflare Access protects this hostname.
     networks:
@@ -89,3 +130,4 @@ networks:
 volumes:
   jobpilot_db:
   jobpilot_applications:
+  jobpilot_postgres:

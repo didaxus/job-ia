@@ -13,3 +13,6 @@ node_modules/
 .venv/
 *.zip
 *.tar.gz
+
+**/auth.json
+**/codex-home/

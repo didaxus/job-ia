@@ -6,14 +6,20 @@ RUN git clone https://github.com/fedorchenko-juli/job_search_tool.git /opt/job_s
  && cd /opt/job_search_tool && git checkout "$SEARCH_REF" \
  && git clone https://github.com/Remotivated/job-hunt-skills.git /opt/job_hunt_skills \
  && cd /opt/job_hunt_skills && git checkout "$JOBHUNT_REF"
-RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r /opt/job_search_tool/requirements.txt
+RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r /opt/job_search_tool/requirements.txt 'psycopg[binary]>=3.2,<4'
+# Codex CLI uses the ChatGPT subscription session (not OpenAI API billing).
+# Pin to an official tagged release. No login or credentials at image build.
+RUN npm install --global --no-audit --no-fund @openai/codex@0.162.1
 COPY app/ /opt/jobpilot/app/
+COPY db/ /opt/jobpilot/db/
 COPY config/ /opt/jobpilot/config/
 COPY config/filters.yaml /opt/job_search_tool/filters.yaml
 COPY config/companies.yaml /opt/job_search_tool/companies.yaml
 COPY config/aggregators.yaml /opt/job_search_tool/aggregators.yaml
+# Worker expects a dedicated writable CODEX_HOME mount at runtime.
+ENV CODEX_HOME=/opt/jobpilot-codex-home
 RUN mkdir -p /output /opt/job_search_tool/data && chown -R node:node /opt/job_search_tool /opt/jobpilot /opt/job_hunt_skills /output
 ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /opt/job_search_tool
 USER node
-CMD ["python", "/opt/jobpilot/app/jobpilot.py", "--loop"]
+CMD ["python", "/opt/jobpilot/app/profile_worker.py"]

@@ -17,3 +17,7 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+
+# Codex session tokens: never publish.
+**/auth.json
+**/codex-home/
