@@ -8,7 +8,7 @@ Prototipo de busqueda de vacantes de empresas reales, analisis de ajuste, genera
 2. Selecciona **Docker Compose**, base directory `/`, compose file `/compose.yaml`.
 3. Configura las variables en Coolify: `FIT_MIN=80`, `SCAN_EVERY_HOURS=24`, `AUTO_EMAIL=false` y, opcionalmente, `ANTHROPIC_API_KEY`. No subas claves al repositorio.
 4. Prepara en el servidor `/srv/jobpilot-id/private` y crea ahi `facts.yaml` y `profile.yaml` usando las plantillas de `private/`. Nunca publiques tu CV ni secretos en GitHub.
-5. Despliega. El dashboard usa `127.0.0.1:13030`, **no se publica en Internet sin autenticacion**. Para verlo desde un PC: `ssh -L 3000:127.0.0.1:13030 root@IP_SERVIDOR`, luego `http://localhost:3000`.
+5. Despliega: el Compose ahora contiene un router Traefik HTTPS para `jobs-ia.didaxus.com` hacia el puerto interno 3000 del `dashboard`, unido a la red externa `coolify`. **Protege el hostname con Cloudflare Access antes de servir datos personales**; Cloudflare Tunnel por sí solo no autentica. Conserva el diagnóstico por `127.0.0.1:13030` (SSH: `ssh -L 3000:127.0.0.1:13030 root@IP_SERVIDOR`). En Coolify evita los routers duplicados entre labels manuales y dominios generados.
 
 ### Estructura
 
