@@ -44,6 +44,33 @@ services:
       DB_PATH: /opt/job_search_tool/data/seen_jobs.sqlite3
     volumes:
       - jobpilot_db:/opt/job_search_tool/data
+    # Cloudflare Tunnel -> Traefik (HTTPS entrypoint) -> Next.js dashboard:3000.
+    # Do not expose personal data until Cloudflare Access protects this hostname.
+    networks:
+      - default
+      - coolify
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=coolify'
+      - 'traefik.http.routers.job-ia-dashboard.rule=Host(`jobs-ia.didaxus.com`)'
+      - 'traefik.http.routers.job-ia-dashboard.entrypoints=https'
+      - 'traefik.http.routers.job-ia-dashboard.tls=true'
+      - 'traefik.http.routers.job-ia-dashboard.priority=10'
+      - 'traefik.http.routers.job-ia-dashboard.service=job-ia-dashboard'
+      - 'traefik.http.routers.job-ia-dashboard.middlewares=job-ia-dashboard-headers,job-ia-dashboard-rate-limit'
+      - 'traefik.http.services.job-ia-dashboard.loadbalancer.server.port=3000'
+      - 'traefik.http.services.job-ia-dashboard.loadbalancer.server.scheme=http'
+      - 'traefik.http.services.job-ia-dashboard.loadbalancer.passhostheader=true'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.stsSeconds=31536000'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.stsIncludeSubdomains=true'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.stsPreload=true'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.contentTypeNosniff=true'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.frameDeny=true'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.referrerPolicy=no-referrer'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.permissionsPolicy=camera=(),microphone=(),geolocation=()'
+      - 'traefik.http.middlewares.job-ia-dashboard-headers.headers.customResponseHeaders.X-Robots-Tag=noindex,nofollow,noarchive'
+      - 'traefik.http.middlewares.job-ia-dashboard-rate-limit.ratelimit.average=120'
+      - 'traefik.http.middlewares.job-ia-dashboard-rate-limit.ratelimit.burst=40'
     ports:
       - "127.0.0.1:13030:3000"
     restart: unless-stopped
@@ -52,6 +79,12 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+# The Coolify proxy already owns the external network `coolify`.
+networks:
+  default: {}
+  coolify:
+    external: true
 
 volumes:
   jobpilot_db:
