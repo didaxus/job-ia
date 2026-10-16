@@ -401,7 +401,7 @@ def claim_search():
         with db.cursor() as cur:
             cur.execute("""
                 SELECT id,kind FROM search_requests WHERE state='queued'
-                ORDER BY created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1
+                ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
             """)
             row = cur.fetchone()
             if not row:

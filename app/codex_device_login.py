@@ -31,7 +31,7 @@ def request_login(db_connect):
         """)
         row = db.execute("""
             SELECT id FROM codex_device_logins WHERE state='queued'
-            ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
+            ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED
         """).fetchone()
         if row:
             db.execute("""

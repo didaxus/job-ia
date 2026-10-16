@@ -56,6 +56,33 @@ class PostgresIntegrationTests(unittest.TestCase):
             db.execute("DELETE FROM codex_device_logins WHERE id=%s", (request,))
             db.commit()
 
+    def test_search_queue_claim_update_is_sql_valid(self):
+        worker = self.worker
+        with worker.pg_connect() as db:
+            db.execute("DELETE FROM search_requests")
+            pending = db.execute("""
+                INSERT INTO search_requests(kind,state)
+                VALUES ('fetch','queued') RETURNING id
+            """).fetchone()[0]
+            db.commit()
+        claimed = worker.claim_search()
+        self.assertEqual(claimed, (pending, "fetch"))
+        with worker.pg_connect() as db:
+            state = db.execute(
+                "SELECT state FROM search_requests WHERE id=%s",
+                (pending,)
+            ).fetchone()[0]
+            self.assertEqual(state, "running")
+        worker.finish_search(pending)
+        with worker.pg_connect() as db:
+            state = db.execute(
+                "SELECT state FROM search_requests WHERE id=%s",
+                (pending,)
+            ).fetchone()[0]
+            self.assertEqual(state, "completed")
+            db.execute("DELETE FROM search_requests WHERE id=%s", (pending,))
+            db.commit()
+
     def test_idempotent_legacy_import_and_single_history(self):
         worker = self.worker
         with tempfile.TemporaryDirectory() as folder:
