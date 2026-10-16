@@ -439,16 +439,41 @@ def enqueue_periodic_if_due():
         db.commit()
 
 
+def write_heartbeat():
+    with pg_connect() as db:
+        db.execute("""
+            INSERT INTO worker_heartbeat(worker_id,checked_at,state)
+            VALUES ('pipeline',now(),'active')
+            ON CONFLICT(worker_id) DO UPDATE SET
+                checked_at=now(),state='active'
+        """)
+        db.commit()
+
+
 def run_worker(one_cycle=False):
+    # The independent schema service initializes PostgreSQL before this
+    # container starts. Keep the legacy idempotent initialization as fallback.
     initialize()
-    sync_once()
+    write_heartbeat()
+    try:
+        sync_once()
+    except Exception as exc:
+        # A broken/old SQLite import must not prevent dashboard onboarding,
+        # queued searches or Codex linking. Keep last database state intact.
+        print(f"[import] initial import pending: {type(exc).__name__}", flush=True)
     if one_cycle:
         return
     last_profile_revision = None
     last_reindex = time.monotonic()
     last_codex_check = 0.0
+    last_heartbeat = 0.0
     while True:
         try:
+            if time.monotonic() - last_heartbeat >= 30:
+                write_heartbeat()
+                last_heartbeat = time.monotonic()
+            from codex_device_login import poll_device_login
+            poll_device_login(pg_connect)
             if time.monotonic() - last_codex_check >= 300:
                 from codex_provider import login_status
                 update_ai_status(login_status())

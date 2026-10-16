@@ -19,6 +19,11 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(cfg["services"]["pipeline"]["environment"]["AUTO_EMAIL"],"${AUTO_EMAIL:-false}")
         self.assertEqual(cfg["services"]["dashboard"]["ports"],["127.0.0.1:13030:3000"])
         self.assertIn("postgres", cfg["services"])
+        self.assertIn("schema", cfg["services"])
+        self.assertIn("service_completed_successfully",
+                      str(cfg["services"]["dashboard"]["depends_on"]))
+        self.assertIn("service_completed_successfully",
+                      str(cfg["services"]["pipeline"]["depends_on"]))
         self.assertEqual(cfg["services"]["postgres"]["image"], "postgres:16-alpine")
         self.assertIn("jobpilot_postgres", cfg["volumes"])
         self.assertIn("service_healthy", str(cfg["services"]["dashboard"]["depends_on"]))

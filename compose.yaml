@@ -19,10 +19,30 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  pipeline:
+  schema:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: jobpilot
+      PGDATABASE: jobpilot
+      PGPASSWORD: ${JOBPILOT_DB_PASSWORD:?Set JOBPILOT_DB_PASSWORD in Coolify}
+    restart: "no"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  pipeline:
+    depends_on:
+      schema:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -66,8 +86,8 @@ services:
 
   dashboard:
     depends_on:
-      postgres:
-        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile.dashboard

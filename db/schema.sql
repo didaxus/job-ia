@@ -133,3 +133,31 @@ CREATE TABLE IF NOT EXISTS ai_evaluation_attempts (
     invoked_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_ai_attempts_window ON ai_evaluation_attempts(invoked_at);
+
+-- A short-lived Codex device authorization attempt, NOT an OAuth credential.
+-- The one-time USER CODE is displayed only in the externally-protected
+-- dashboard, never in logs, and deleted on completion/expiry.
+CREATE TABLE IF NOT EXISTS codex_device_logins (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    state text NOT NULL DEFAULT 'queued' CHECK
+        (state IN ('queued','starting','awaiting_user','connected','failed','expired')),
+    verification_url text,
+    user_code text,
+    error_code text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL DEFAULT now() + interval '15 minutes',
+    finished_at timestamptz
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_codex_one_active_login
+    ON codex_device_logins ((1))
+    WHERE state IN ('queued','starting','awaiting_user');
+CREATE INDEX IF NOT EXISTS idx_codex_device_login_recent
+    ON codex_device_logins(created_at DESC);
+
+-- The worker refreshes this timestamp so the UI can distinguish 'no jobs'
+-- from 'the worker never started'.
+CREATE TABLE IF NOT EXISTS worker_heartbeat (
+    worker_id text PRIMARY KEY,
+    checked_at timestamptz NOT NULL DEFAULT now(),
+    state text NOT NULL DEFAULT 'starting'
+);
