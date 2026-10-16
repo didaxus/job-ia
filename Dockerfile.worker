@@ -18,7 +18,9 @@ COPY config/companies.yaml /opt/job_search_tool/companies.yaml
 COPY config/aggregators.yaml /opt/job_search_tool/aggregators.yaml
 # Worker expects a dedicated writable CODEX_HOME mount at runtime.
 ENV CODEX_HOME=/opt/jobpilot-codex-home
-RUN mkdir -p /output /opt/job_search_tool/data && chown -R node:node /opt/job_search_tool /opt/jobpilot /opt/job_hunt_skills /output
+RUN mkdir -p /output /opt/job_search_tool/data /opt/jobpilot-codex-home \
+ && chown -R node:node /opt/job_search_tool /opt/jobpilot /opt/job_hunt_skills /opt/jobpilot-codex-home /output \
+ && chmod 700 /opt/jobpilot-codex-home
 ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /opt/job_search_tool
 USER node

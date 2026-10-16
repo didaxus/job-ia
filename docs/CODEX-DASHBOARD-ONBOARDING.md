@@ -17,13 +17,9 @@ Esta revisión corrige dos defectos independientes observados tras desplegar el 
 
 La rama actual utiliza el mismo proyecto Compose, el volumen SQLite antiguo y el volumen PostgreSQL de JobPilot. **Haz backup antes de desplegar; no uses `docker compose down -v` ni cambies el nombre del proyecto Coolify.**
 
-En Coolify ya debe estar configurada `JOBPILOT_DB_PASSWORD`. La nueva migración `schema` recibirá esa misma contraseña. Crea la carpeta donde Codex guardará su sesión como UID/GID 1000:
+En Coolify debe estar configurada la contraseña `JOBPILOT_DB_PASSWORD`. El servicio `schema` utiliza esa misma contraseña. **Por defecto, Codex utiliza el volumen Docker persistente `jobpilot_codex_home`**, creado automáticamente por Compose con permisos de usuario correctos. No necesitas crear carpetas por SSH ni introducir secretos de ChatGPT en Coolify.
 
-```bash
-sudo install -d -o 1000 -g 1000 -m 700 /srv/jobpilot-id/codex-home
-```
-
-Confirma que tu política Cloudflare Zero Trust protege el hostname `jobs-ia.didaxus.com` antes de introducir información personal o autorizar Codex. Esto se configura **en Cloudflare**, no en Coolify.
+Si ya tienes una sesión previa de Codex en `/srv/jobpilot-id/codex-home`, puedes conservarla configurando opcionalmente `JOBPILOT_CODEX_HOST_DIR=/srv/jobpilot-id/codex-home` en Coolify; verifica que sea propiedad de UID 1000 y modo 0700. No borres el directorio anterior antes de comprobar la migración.
 
 ## 3. Flujo nuevo dentro del dashboard
 
