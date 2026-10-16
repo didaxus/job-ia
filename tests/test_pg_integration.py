@@ -53,6 +53,10 @@ class PostgresIntegrationTests(unittest.TestCase):
                 SELECT state FROM worker_heartbeat WHERE worker_id='pipeline'
             """).fetchone()
             self.assertEqual(heartbeat, ("active",))
+            provider_state = db.execute("""
+                SELECT state FROM ai_runtime_status WHERE provider='codex_chatgpt'
+            """).fetchone()
+            self.assertEqual(provider_state, ("connected",))
             db.execute("DELETE FROM codex_device_logins WHERE id=%s", (request,))
             db.commit()
 

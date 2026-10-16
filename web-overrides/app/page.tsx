@@ -271,11 +271,11 @@ export default function Page() {
             <button type="button" className="jp-primary" disabled={busy ||
                 systemStatus?.worker !== "active" ||
                 ["queued", "starting", "awaiting_user"].includes(device?.effective_state || "") ||
-                aiRuntime?.state === "connected"}
+                (aiRuntime?.state === "connected" || device?.effective_state === "connected")}
               onClick={connectCodex}>Conectar ChatGPT</button>
           </div>
           <p className="jp-muted">
-            Estado: <strong>{aiRuntime?.state === "connected" ? "Conectado con ChatGPT" :
+            Estado: <strong>{(aiRuntime?.state === "connected" || device?.effective_state === "connected") ? "Conectado con ChatGPT" :
               device?.effective_state === "queued" ? "Solicitud en espera del worker" :
               device?.effective_state === "starting" ? "Preparando código de dispositivo" :
               device?.effective_state === "awaiting_user" ? "Esperando autorización en OpenAI" :

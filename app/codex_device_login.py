@@ -59,6 +59,13 @@ def update_request(db_connect, request_id, state, code=None, error_code=None):
         """, (state, code if state == "awaiting_user" else None,
               VERIFY_URL if state == "awaiting_user" else None,
               error_code, state, request_id))
+        if state == "connected":
+            db.execute("""
+                INSERT INTO ai_runtime_status(provider,state,checked_at)
+                VALUES ('codex_chatgpt','connected',now())
+                ON CONFLICT(provider) DO UPDATE SET
+                  state='connected',checked_at=now()
+            """)
         db.commit()
 
 
