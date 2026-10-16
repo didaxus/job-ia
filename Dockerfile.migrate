@@ -1,0 +1,4 @@
+FROM postgres:16-alpine
+COPY db/schema.sql /usr/local/share/jobpilot/schema.sql
+# Never embeds or logs database credentials; password comes from Coolify.
+CMD ["psql", "-v", "ON_ERROR_STOP=1", "-f", "/usr/local/share/jobpilot/schema.sql"]

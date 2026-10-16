@@ -19,10 +19,30 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  pipeline:
+  schema:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: jobpilot
+      PGDATABASE: jobpilot
+      PGPASSWORD: ${JOBPILOT_DB_PASSWORD:?Set JOBPILOT_DB_PASSWORD in Coolify}
+    restart: "no"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  pipeline:
+    depends_on:
+      schema:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -55,7 +75,7 @@ services:
       - jobpilot_db:/opt/job_search_tool/data
       - jobpilot_applications:/output
       # Writable only for Codex CLI token refresh; never mounted in dashboard.
-      - ${JOBPILOT_CODEX_HOST_DIR:-/srv/jobpilot-id/codex-home}:/opt/jobpilot-codex-home
+      - ${JOBPILOT_CODEX_HOST_DIR:-jobpilot_codex_home}:/opt/jobpilot-codex-home
     command: ["python", "/opt/jobpilot/app/profile_worker.py"]
     restart: unless-stopped
     init: true
@@ -66,8 +86,8 @@ services:
 
   dashboard:
     depends_on:
-      postgres:
-        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile.dashboard
@@ -131,3 +151,4 @@ volumes:
   jobpilot_db:
   jobpilot_applications:
   jobpilot_postgres:
+  jobpilot_codex_home:

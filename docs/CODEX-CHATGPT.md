@@ -6,13 +6,9 @@ JobPilot ID ejecuta **Codex CLI**, autenticado con tu cuenta ChatGPT, sin OPENAI
 
 Mantén la misma Application Coolify y el mismo nombre de proyecto para conservar los volúmenes. PostgreSQL requiere JOBPILOT_DB_PASSWORD. Cloudflare Zero Trust Access se administra exclusivamente desde Cloudflare: no requiere variables en Coolify ni se implanta otro inicio de sesión en el dashboard.
 
-Crea un directorio de autenticación Codex diferente de la carpeta donde residen tus CV:
+Por defecto, Compose crea un **volumen Docker persistente `jobpilot_codex_home`** con propiedad UID 1000. No necesitas preparar nada por SSH. Si ya tenías una carpeta host existente con una sesión válida de Codex, puedes usarla mediante la variable opcional `JOBPILOT_CODEX_HOST_DIR` y conservar sus permisos. No montes ese volumen en el dashboard.
 
-```bash
-sudo install -d -o 1000 -g 1000 -m 700 /srv/jobpilot-id/codex-home
-```
-
-El Compose monta esta carpeta como CODEX_HOME en el contenedor `pipeline` solamente, nunca en el dashboard ni en PostgreSQL. Su archivo auth.json contiene tokens equivalentes a credenciales de acceso: nunca publicarlo ni copiarlo a GitHub, al chat o al contenedor web.
+El archivo `auth.json` contiene tokens equivalentes a credenciales de acceso: nunca publicarlo ni copiarlo a GitHub, al chat o al contenedor web.
 
 ## Vincular la cuenta por terminal, una sola vez
 

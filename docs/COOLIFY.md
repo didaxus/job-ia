@@ -62,3 +62,7 @@ Para Codex no se necesita OPENAI_API_KEY ni claves de Anthropic. El worker insta
 La protección de jobs-ia.didaxus.com se configura exclusivamente en tu aplicación de Cloudflare Zero Trust, fuera de Coolify. No se requieren variables ni validadores de Cloudflare dentro de JobPilot.
 
 Consulta [guía Codex](CODEX-CHATGPT.md) y [migración](DUAL-PROFILES-POSTGRES.md).
+
+## Asistente visual de Codex y diagnóstico de datos
+
+Consulta [CODEX-DASHBOARD-ONBOARDING.md](CODEX-DASHBOARD-ONBOARDING.md). El nuevo servicio `schema` debe terminar con exit 0 antes de iniciar el panel y el worker; se mantiene el mismo proyecto y todos los volúmenes existentes. El dashboard muestra la disponibilidad de PostgreSQL, el pulso del worker, los conteos y el código de dispositivo de Codex CLI sin usar API key ni variables Cloudflare. **No borrar volúmenes** para solucionar la pantalla vacía.

@@ -73,4 +73,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build both images (no deploy or submissions)
-        run: docker compose -f compose.yaml build pipeline dashboard
+        run: docker compose -f compose.yaml build schema pipeline dashboard

@@ -81,3 +81,16 @@ fieldset label{margin:6px 0}
  .jp-tab{font-size:.78rem;padding:10px}
  .jp-dialog{padding:17px}
 }
+
+/* Device authorization stays visible even when the database contains no jobs. */
+.jp-system {display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.jp-onboarding {padding:22px 24px;border-color:#a9b9de}
+.jp-onboarding-header {display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.jp-onboarding-header p {margin-bottom:10px}
+.jp-device-flow {background:#f1f5ff;border:1px solid #b8c9ee;border-radius:11px;padding:17px;margin-top:14px}
+.jp-device-flow p {margin:10px 0}
+.jp-device-code {display:inline-block;background:#fff;border:1px solid #a7b9db;border-radius:9px;padding:12px 18px;letter-spacing:.16em;font-weight:800;font-size:clamp(1.05rem,3vw,1.6rem);overflow-wrap:anywhere;user-select:text}
+@media(max-width:760px) {
+ .jp-onboarding{padding:17px}
+ .jp-onboarding-header{align-items:flex-start;flex-direction:column}
+}

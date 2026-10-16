@@ -22,6 +22,71 @@ class PostgresIntegrationTests(unittest.TestCase):
             ids = [r[0] for r in db.execute("SELECT id FROM search_profiles ORDER BY id").fetchall()]
             assert ids == ["assistant", "professional"], ids
 
+    def test_codex_device_login_is_ephemeral(self):
+        import codex_device_login as auth
+        worker = self.worker
+        with worker.pg_connect() as db:
+            db.execute("DELETE FROM codex_device_logins")
+            request = db.execute("""
+                INSERT INTO codex_device_logins DEFAULT VALUES RETURNING id
+            """).fetchone()[0]
+            db.commit()
+        self.assertEqual(auth.request_login(worker.pg_connect), request)
+        auth.update_request(worker.pg_connect, request, "awaiting_user",
+                            code="ABCD-1234")
+        with worker.pg_connect() as db:
+            value = db.execute("""
+                SELECT state,user_code,verification_url FROM codex_device_logins
+                WHERE id=%s
+            """, (request,)).fetchone()
+            self.assertEqual(value, ("awaiting_user", "ABCD-1234",
+                                     "https://auth.openai.com/codex/device"))
+        auth.update_request(worker.pg_connect, request, "connected")
+        worker.write_heartbeat()
+        with worker.pg_connect() as db:
+            state = db.execute("""
+                SELECT state,user_code,verification_url FROM codex_device_logins
+                WHERE id=%s
+            """, (request,)).fetchone()
+            self.assertEqual(state, ("connected", None, None))
+            heartbeat = db.execute("""
+                SELECT state FROM worker_heartbeat WHERE worker_id='pipeline'
+            """).fetchone()
+            self.assertEqual(heartbeat, ("active",))
+            provider_state = db.execute("""
+                SELECT state FROM ai_runtime_status WHERE provider='codex_chatgpt'
+            """).fetchone()
+            self.assertEqual(provider_state, ("connected",))
+            db.execute("DELETE FROM codex_device_logins WHERE id=%s", (request,))
+            db.commit()
+
+    def test_search_queue_claim_update_is_sql_valid(self):
+        worker = self.worker
+        with worker.pg_connect() as db:
+            db.execute("DELETE FROM search_requests")
+            pending = db.execute("""
+                INSERT INTO search_requests(kind,state)
+                VALUES ('fetch','queued') RETURNING id
+            """).fetchone()[0]
+            db.commit()
+        claimed = worker.claim_search()
+        self.assertEqual(claimed, (pending, "fetch"))
+        with worker.pg_connect() as db:
+            state = db.execute(
+                "SELECT state FROM search_requests WHERE id=%s",
+                (pending,)
+            ).fetchone()[0]
+            self.assertEqual(state, "running")
+        worker.finish_search(pending)
+        with worker.pg_connect() as db:
+            state = db.execute(
+                "SELECT state FROM search_requests WHERE id=%s",
+                (pending,)
+            ).fetchone()[0]
+            self.assertEqual(state, "completed")
+            db.execute("DELETE FROM search_requests WHERE id=%s", (pending,))
+            db.commit()
+
     def test_idempotent_legacy_import_and_single_history(self):
         worker = self.worker
         with tempfile.TemporaryDirectory() as folder:

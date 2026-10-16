@@ -1,5 +1,12 @@
 # JobPilot ID
 
+## Dashboard: conexión Codex y diagnóstico de PostgreSQL
+
+El dashboard ahora muestra un asistente para **Conectar ChatGPT mediante código de dispositivo de Codex**, directamente desde `jobs-ia.didaxus.com` (sin API key). El worker es el único componente que almacena las credenciales de la CLI en `CODEX_HOME`. Para iniciar no es obligatorio usar SSH, pero el directorio privado debe existir antes del despliegue.
+
+El servicio `schema` inicializa o actualiza PostgreSQL de forma idempotente **antes** de iniciar worker y dashboard, y `/api/system/status` diferencia entre PostgreSQL sin conexión, esquema incompleto, worker detenido, vacantes almacenadas y cero coincidencias. Consulta la [guía de reparación y vinculación](docs/CODEX-DASHBOARD-ONBOARDING.md).
+
+
 ## Dual-profile PostgreSQL deployment (proposed)
 
 This revision introduces two **editable** search profiles: **Professional (educación/L&D)** and **Assistant (asistencia virtual)**. Profiles have their own search terms, roles, eligibility preferences, factual experience fields, fit thresholds and privately stored PDF CVs.

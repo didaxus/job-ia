@@ -28,6 +28,9 @@ class PostgresContractTests(unittest.TestCase):
         self.assertIn("ai_provider", (ROOT / "db/schema.sql").read_text())
         self.assertIn("ai_inferences jsonb", (ROOT / "db/schema.sql").read_text())
         self.assertIn("ai_runtime_status", (ROOT / "db/schema.sql").read_text())
+        self.assertIn("codex_device_logins", (ROOT / "db/schema.sql").read_text())
+        self.assertIn("uq_codex_one_active_login", (ROOT / "db/schema.sql").read_text())
+        self.assertIn("worker_heartbeat", (ROOT / "db/schema.sql").read_text())
 
     def test_original_sqlite_not_deleted_or_replaced(self):
         worker = (ROOT / "app/profile_worker.py").read_text()

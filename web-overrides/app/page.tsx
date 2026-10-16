@@ -20,6 +20,15 @@ type Job = {
   application_origin: string | null;
 };
 type AiRuntime = {provider:string;state:string;checked_at:string|null};
+type DeviceLogin = {
+  id: string | null; state: string; effective_state: string;
+  verification_url: string | null; user_code: string | null;
+  expires_at: string | null; error_code: string | null;
+};
+type SystemStatus = {
+  database: string; worker: string; jobs: number | null;
+  profiles?: number; matches?: number; message: string;
+};
 type Search = {
   id: number; profile_id: ProfileId | null; state: string;
   created_at: string; error_message: string | null;
@@ -36,7 +45,7 @@ const statuses = [
 async function requestJson(url: string, options?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...options });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+  if (!response.ok) throw new Error(data.error || data.message || ("HTTP " + response.status));
   return data;
 }
 
@@ -46,6 +55,8 @@ export default function Page() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [runs, setRuns] = useState<Search[]>([]);
   const [aiRuntime, setAiRuntime] = useState<AiRuntime | null>(null);
+  const [device, setDevice] = useState<DeviceLogin | null>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [showRejected, setShowRejected] = useState(false);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
@@ -60,28 +71,57 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
 
   async function refresh(selectedView: View = view, rejected: boolean = showRejected) {
-    try {
-      const [list, matches, searches, provider] = await Promise.all([
-        requestJson("/api/profiles"),
-        requestJson("/api/jobs?profile=" + selectedView + "&rejected=" + rejected),
-        requestJson("/api/search"),
-        requestJson("/api/ai/status"),
-      ]);
-      setProfiles(list);
-      setJobs(matches);
-      setRuns(searches);
-      setAiRuntime(provider);
-      setError("");
-    } catch (e) { setError((e as Error).message); }
-    finally { setLoading(false); }
+    // Do not suppress the entire dashboard if only one endpoint fails.
+    // This is essential for diagnosing PostgreSQL/worker start-up failures.
+    const sources = [
+      ["Perfiles", "/api/profiles"],
+      ["Vacantes", "/api/jobs?profile=" + selectedView + "&rejected=" + rejected],
+      ["Historial", "/api/search"],
+      ["Codex", "/api/ai/status"],
+      ["Vinculación", "/api/ai/connect"],
+      ["Sistema", "/api/system/status"],
+    ];
+    const settled = await Promise.allSettled(sources.map(([, url]) => requestJson(url)));
+    if (settled[0].status === "fulfilled") setProfiles(settled[0].value);
+    if (settled[1].status === "fulfilled") setJobs(settled[1].value);
+    if (settled[2].status === "fulfilled") setRuns(settled[2].value);
+    if (settled[3].status === "fulfilled") setAiRuntime(settled[3].value);
+    if (settled[4].status === "fulfilled") setDevice(settled[4].value);
+    if (settled[5].status === "fulfilled") setSystemStatus(settled[5].value);
+    if (settled[5].status === "rejected") {
+      setSystemStatus({ database: "unavailable", worker: "unknown",
+                        jobs: null, message: "No se pudo consultar PostgreSQL" });
+    }
+    const failures = settled.flatMap((result, i) =>
+      result.status === "rejected"
+        ? [sources[i][0] + ": " + (result.reason as Error).message]
+        : []
+    );
+    setError(failures.join(" | "));
+    setLoading(false);
   }
 
   useEffect(() => {
     setLoading(true);
     refresh(view, showRejected);
-    const poll = window.setInterval(() => refresh(view, showRejected), 20000);
+    const poll = window.setInterval(() => refresh(view, showRejected), 15000);
     return () => window.clearInterval(poll);
   }, [view, showRejected]);
+
+  useEffect(() => {
+    // Device authorization runs in the worker. Poll only the short-lived
+    // code and operational status, not the whole jobs list, every 3 seconds.
+    const poll = window.setInterval(async () => {
+      if (!device || !["queued", "starting", "awaiting_user"].includes(device.effective_state)) return;
+      const [next, ai] = await Promise.allSettled([
+        requestJson("/api/ai/connect"),
+        requestJson("/api/ai/status"),
+      ]);
+      if (next.status === "fulfilled") setDevice(next.value);
+      if (ai.status === "fulfilled") setAiRuntime(ai.value);
+    }, 3000);
+    return () => window.clearInterval(poll);
+  }, [device]);
 
   const activeProfile = profiles.find(p => p.id === view);
   const visible = useMemo(() => jobs.filter(j => {
@@ -129,6 +169,16 @@ export default function Page() {
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
+  async function connectCodex() {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await requestJson("/api/ai/connect", { method: "POST" });
+      setNotice("Vinculación solicitada. Espera el código y abre el enlace oficial de OpenAI.");
+      await refresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
   async function searchNow() {
     setBusy(true); setError(""); setNotice("");
     try {
@@ -172,7 +222,7 @@ export default function Page() {
           <h1>Búsqueda laboral personalizada</h1>
           <p className="jp-muted">Dos perfiles, dos CV y un historial único. No envía candidaturas automáticamente.</p>
         </div>
-        <button className="jp-primary" type="button" disabled={busy} onClick={searchNow}>Buscar ahora</button>
+        <button className="jp-primary" type="button" disabled={busy || systemStatus?.worker !== "active"} onClick={searchNow}>Buscar ahora</button>
       </header>
       <main className="jp-main">
         <nav className="jp-tabs" aria-label="Perfiles laborales">
@@ -184,11 +234,87 @@ export default function Page() {
             </button>
           ))}
         </nav>
+        {systemStatus && (
+          <section className="jp-panel jp-system">
+            <div>
+              <strong>Estado del sistema</strong>
+              <p className="jp-muted">
+                PostgreSQL: {systemStatus.database === "ready" ? "conectado" :
+                  systemStatus.database === "schema_missing" ? "esperando migración" : "sin conexión"} ·
+                Worker: {systemStatus.worker === "active" ? "activo" : "sin actividad reciente"} ·
+                Ofertas almacenadas: {systemStatus.jobs === null ? "desconocido" : systemStatus.jobs}
+              </p>
+            </div>
+            {systemStatus.database !== "ready" && (
+              <p className="jp-muted">
+                El panel todavía no puede consultar datos. Verifica en Coolify los servicios
+                postgres y schema; no borres SQLite ni los volúmenes.
+              </p>
+            )}
+            {systemStatus.database === "ready" && systemStatus.worker !== "active" && (
+              <p className="jp-muted">
+                PostgreSQL está listo pero el worker no informa actividad.
+                Revisa los logs del servicio pipeline en Coolify.
+              </p>
+            )}
+          </section>
+        )}
+        <section className="jp-panel jp-onboarding">
+          <div className="jp-onboarding-header">
+            <div>
+              <p className="jp-eyebrow">PROVEEDOR IA · SIN API KEY</p>
+              <h2>Conecta Codex con tu cuenta ChatGPT</h2>
+              <p className="jp-muted">
+                Utiliza la cuota Codex de tu plan. No escribas aquí contraseñas ni tokens.
+              </p>
+            </div>
+            <button type="button" className="jp-primary" disabled={busy ||
+                systemStatus?.worker !== "active" ||
+                ["queued", "starting", "awaiting_user"].includes(device?.effective_state || "") ||
+                (aiRuntime?.state === "connected" || device?.effective_state === "connected")}
+              onClick={connectCodex}>Conectar ChatGPT</button>
+          </div>
+          <p className="jp-muted">
+            Estado: <strong>{(aiRuntime?.state === "connected" || device?.effective_state === "connected") ? "Conectado con ChatGPT" :
+              device?.effective_state === "queued" ? "Solicitud en espera del worker" :
+              device?.effective_state === "starting" ? "Preparando código de dispositivo" :
+              device?.effective_state === "awaiting_user" ? "Esperando autorización en OpenAI" :
+              device?.effective_state === "failed" ? "No se completó la autorización" :
+              device?.effective_state === "expired" ? "El código expiró; puedes solicitar otro" :
+              systemStatus?.worker !== "active" ? "Worker sin actividad" : "Pendiente de conexión"}</strong>
+          </p>
+          {device?.effective_state === "awaiting_user" && device.user_code && (
+            <div className="jp-device-flow">
+              <p><strong>1.</strong> Abre la página oficial de autorización:</p>
+              <a href="https://auth.openai.com/codex/device" target="_blank"
+                 rel="noopener noreferrer" className="jp-link">
+                Abrir autorización oficial de OpenAI ↗
+              </a>
+              <p><strong>2.</strong> Introduce este código temporal en esa página:</p>
+              <code className="jp-device-code">{device.user_code}</code>
+              <p className="jp-muted">
+                Expira en aproximadamente 15 minutos. No compartas este código.
+                La página se actualizará automáticamente al completar el proceso.
+              </p>
+            </div>
+          )}
+          {device?.effective_state === "failed" && (
+            <p className="jp-muted">
+              No se pudo iniciar o completar Codex CLI ({device.error_code || "sin detalle"}).
+              Comprueba que la autenticación por código de dispositivo esté habilitada para tu cuenta.
+              Puedes intentarlo de nuevo.
+            </p>
+          )}
+          <p className="jp-muted jp-small">
+            La vinculación se ejecuta en el worker; los tokens se guardan solo en CODEX_HOME,
+            nunca en el dashboard ni en PostgreSQL.
+          </p>
+        </section>
         {error && <div className="jp-alert jp-error" role="alert">{error}</div>}
         {notice && <div className="jp-alert jp-success" role="status">{notice}</div>}
         <div className="jp-metrics">
-          <div className="jp-metric"><span>Vacantes en pantalla</span><strong>{uniqueJobs}</strong></div>
-          <div className="jp-metric"><span>Coincidencias por perfil</span><strong>{visible.length}</strong></div>
+          <div className="jp-metric"><span>Vacantes en pantalla</span><strong>{systemStatus?.database === "ready" ? uniqueJobs : "—"}</strong></div>
+          <div className="jp-metric"><span>Coincidencias por perfil</span><strong>{systemStatus?.database === "ready" ? visible.length : "—"}</strong></div>
           <div className="jp-metric"><span>Última búsqueda</span>
             <strong className="jp-state">{latest ? (
               latest.state === "completed" ? "Completada" :
@@ -315,8 +441,10 @@ export default function Page() {
             {loading ? <p className="jp-empty">Cargando vacantes desde PostgreSQL…</p> :
               visible.length === 0 ? (
                 <div className="jp-empty">
-                  No hay coincidencias para estos criterios. Prueba «Mostrar también ofertas rechazadas».
-                  Las fuentes actuales son limitadas; una base de datos no crea vacantes adicionales.
+                  {systemStatus?.database !== "ready" ? "Esperando conexión con PostgreSQL." :
+                    (systemStatus.jobs === 0
+                      ? "Todavía no hay publicaciones importadas. Verifica el worker e inicia una búsqueda."
+                      : "Hay " + systemStatus.jobs + " publicaciones almacenadas, pero ninguna coincide con estos criterios visibles. Activa «Mostrar también ofertas rechazadas por título» para revisar los motivos.")}
                 </div>
               ) : (
                 <div className="jp-list">
